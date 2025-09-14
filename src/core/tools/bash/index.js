@@ -25,7 +25,7 @@ const cleanupAllProcesses = () => {
   activeProcesses.clear()
 }
 
-async function execute(params, { experimental_context: { workspaceRoot } }) {
+async function execute(params, { experimental_context: { workspaceRoot, onToolConfirm } }) {
   try {
     if (!withinRoot(workspaceRoot)) {
       return "Error: Command execution is restricted outside the workspace root."
@@ -45,10 +45,9 @@ async function execute(params, { experimental_context: { workspaceRoot } }) {
       cleanupAllProcesses()
     }
 
-    // if (!(await confirm(`Run command "${params.command}" (YES/no) > `))) {
-    //   console.log() // Add a newline for better readability
-    //   return "User canceled the operation, stop tool execution."
-    // }
+    if (!(await onToolConfirm({ tool: "bash", params }))) {
+      return "User canceled the operation, stop tool execution."
+    }
 
     try {
       const childProcess = exec(params.command, {
