@@ -1,5 +1,22 @@
 import readline from 'readline/promises';
 import { TinyKode } from '../core/tinykode.js';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
+
+const CONFIG_FILE = join(homedir(), '.tinykode', 'tinykode.json');
+
+function loadConfig() {
+    try {
+        if (existsSync(CONFIG_FILE)) {
+            const configData = readFileSync(CONFIG_FILE, 'utf8');
+            return JSON.parse(configData);
+        }
+    } catch (error) {
+        console.warn(`Warning: Could not load config from ${CONFIG_FILE}:`, error.message);
+    }
+    return {};
+}
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -12,10 +29,12 @@ export const input = async (question) => {
 };
 
 export const createCLI = (options = {}) => {
+    const config = loadConfig();
+    
     const {
         prompt = ">",
         welcomeMessage = null,
-        tinykodeConfig = {},
+        tinykodeConfig = config,
         exitCommands = ['exit', 'quit'],
         onExit = () => {
             console.log('Goodbye! 👋');

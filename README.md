@@ -79,16 +79,18 @@ await cli.start();
 
 ## Configuration
 
-The TinyKode constructor accepts a configuration object:
+TinyKode CLI can be configured using a JSON file located at `~/.tinykode/tinykode.json`.
 
-```javascript
-const tinykode = new TinyKode({
-    workspaceRoot: process.cwd(),
-    // Add other configuration options here
-});
+### Example Configuration
+
+```json
+{
+  "workspaceRoot": "/path/to/your/projects",
+  "customOption": "value"
+}
 ```
 
-## API
+The configuration object is passed directly to the TinyKode constructor, so any valid TinyKode configuration options can be specified.
 
 ### TinyKode
 

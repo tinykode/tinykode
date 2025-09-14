@@ -3,3 +3,10 @@ export const config = {
     anthropicBaseURL: process.env.ANTHROPIC_BASE_URL || 'http://localhost:3030/v1',
     workspaceRoot: process.env.WORKSPACE_ROOT || process.cwd(),
 }
+
+export const parseConfig = (newConfig) => {
+    return {
+        ...config,
+        ...newConfig
+    }
+}

@@ -4,7 +4,7 @@ import { createCLI, setupEventHandlers } from '../dist/cli/cli.js';
 
 async function main() {
     const cli = createCLI({
-        prompt: "tinykode> ",
+        prompt: "> ",
         welcomeMessage: `🚀 TinyKode CLI
 Type your queries and press Enter. Use Ctrl+C to exit.
 `,

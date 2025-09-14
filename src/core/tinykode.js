@@ -1,28 +1,29 @@
 import { AIClient } from "./ai.js"
-import { config as defaultConfig } from './config.js'
+import { config as defaultConfig, parseConfig } from './config.js'
 import { tools as ToolsMap } from "./tools/index.js"
 
 export class TinyKode {
     ai = null;
     tools = {};
     config = {};
-    finishReason = null;
     messages = [];
+    finishReason = null;
 
     constructor(
-        config = defaultConfig,
         tools = ToolsMap,
+        config = defaultConfig,
         messages = [],
     ) {
         try {
-            if (!config) {
+            this.config = parseConfig(config);
+
+            if (!this.config) {
                 throw new Error("Config is required");
             }
             if (!tools || typeof tools !== 'object') {
                 throw new Error('Tools must be a valid object');
             }
 
-            this.config = config;
             this.ai = new AIClient(this.config);
             this.tools = this.#createTools(tools, this.ai);
             this.messages = messages;
