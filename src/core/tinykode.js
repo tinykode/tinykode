@@ -10,8 +10,8 @@ export class TinyKode {
     finishReason = null;
 
     constructor(
-        tools = ToolsMap,
         config = defaultConfig,
+        tools = ToolsMap,
         messages = [],
     ) {
         try {
