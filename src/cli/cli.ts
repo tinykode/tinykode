@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import type { Config } from '../core/config.js';
+import { ModelMessage } from 'ai';
 
 const CONFIG_FILE = join(homedir(), '.tinykode', 'tinykode.json');
 
@@ -64,10 +65,12 @@ export const createCLI = (options: CLIOptions = {}): CLI => {
     } = options;
 
     const tinykode = new TinyKode(tinykodeConfig);
+    let messages: ModelMessage[] = [];
 
     const processQuery = async (query: string): Promise<void> => {
-        await tinykode.processQuery({
-            query,
+        messages.push({ role: "user", content: query });
+        messages = await tinykode.processQuery({
+            messages,
             onUpdate: (update: string) => {
                 try {
                     process.stdout.write(update);

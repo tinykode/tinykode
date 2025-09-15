@@ -1,4 +1,4 @@
-import { 
+import {
     AIClient,
     type ToolSet,
     type ToolCall,
@@ -9,7 +9,7 @@ import { config as defaultConfig, parseConfig, type Config } from './config.js';
 import { ToolsMap } from "./tools/index.js";
 
 interface ProcessQueryOptions {
-    query: string;
+    messages: ModelMessage[];
     onUpdate?: (chunk: string) => void;
     onToolCalls?: (toolCalls: ToolCall[]) => void;
     onToolResults?: (toolResults: ToolResult[]) => void;
@@ -27,8 +27,6 @@ export class TinyKode {
     ai: AIClient | null = null;
     tools: ToolSet = {};
     config: Config = {} as Config;
-    messages: ModelMessage[] = [];
-    finishReason: string | null = null;
 
     constructor(
         config: Partial<Config> = defaultConfig,
@@ -47,7 +45,6 @@ export class TinyKode {
 
             this.ai = new AIClient(this.config);
             this.tools = this.#createTools(tools, this.ai);
-            this.messages = messages;
         } catch (error) {
             console.error('Error initializing TinyKode:', error);
             throw error;
@@ -61,25 +58,31 @@ export class TinyKode {
         }, {} as Record<string, any>);
     }
 
-    async processQuery({ query, onUpdate, onToolCalls, onToolResults, onToolConfirm }: ProcessQueryOptions): Promise<ModelMessage[]> {
+    async processQuery({
+        messages,
+        onUpdate,
+        onToolCalls,
+        onToolResults,
+        onToolConfirm,
+    }: ProcessQueryOptions): Promise<ModelMessage[]> {
+        let inputMessages = []
+        let stopReason = null;
+
         try {
             // Validate input parameters
-            if (!query || typeof query !== 'string') {
-                throw new Error('Query must be a non-empty string');
+            if (!messages || !Array.isArray(messages)) {
+                throw new Error('Messages must be a non-empty array');
             }
 
-            this.messages.push({ role: "user", content: query });
+            inputMessages = [...messages];
 
-            // Reset finish reason for new query
-            this.finishReason = null;
-
-            while (this.finishReason !== "stop" && this.finishReason !== "length") {
+            while (stopReason !== "stop" && stopReason !== "length") {
                 const {
                     response,
                     textStream,
                 } = this.ai!.streamText({
                     tools: this.tools,
-                    messages: this.messages,
+                    messages: inputMessages,
                     context: {
                         workspaceRoot: this.config.workspaceRoot,
                         onToolConfirm: (args: ToolDefinition) => onToolConfirm?.(args),
@@ -87,7 +90,7 @@ export class TinyKode {
                     onStepFinish: ({ toolCalls, toolResults, finishReason }) => {
                         onToolCalls?.(toolCalls);
                         onToolResults?.(toolResults);
-                        this.finishReason = finishReason;
+                        stopReason = finishReason;
                     },
                 });
 
@@ -96,19 +99,12 @@ export class TinyKode {
                 }
 
                 const { messages } = await response;
-                this.messages.push(...messages);
+                inputMessages.push(...messages);
             }
 
-            return this.messages;
+            return inputMessages;
         } catch (error) {
             console.error('Error processing query:', error);
-
-            // Add error message to conversation history for context
-            this.messages.push({
-                role: "assistant",
-                content: `Error: ${(error as Error).message}`
-            });
-
             throw error;
         }
     }
