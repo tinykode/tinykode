@@ -1,9 +1,9 @@
 import { bashTool } from "./bash/index.js"
 import { editorTool } from "./editor/index.js"
 
-const tools = {
+const ToolsMap = {
   [bashTool.name]: bashTool,
   [editorTool.name]: editorTool,
 }
 
-export { tools }
+export { ToolsMap }

@@ -1,18 +1,33 @@
-import { AIClient } from "./ai.js"
-import { config as defaultConfig, parseConfig } from './config.js'
-import { tools as ToolsMap } from "./tools/index.js"
+import { AIClient, type ModelMessage, type ToolSet } from "./ai.js";
+import { config as defaultConfig, parseConfig, type Config } from './config.js';
+import { ToolsMap } from "./tools/index.js";
+
+interface ProcessQueryOptions {
+    query: string;
+    onUpdate?: (chunk: string) => void;
+    onToolCalls?: (toolCalls: any[]) => void;
+    onToolResults?: (toolResults: any[]) => void;
+    onToolConfirm?: (args: ToolDefinition) => Promise<boolean> | undefined;
+}
+
+interface ToolDefinition {
+    name: string;
+    params: any;
+}
+
+type IToolsMap = Record<string, ToolDefinition>;
 
 export class TinyKode {
-    ai = null;
-    tools = {};
-    config = {};
-    messages = [];
-    finishReason = null;
+    ai: AIClient | null = null;
+    tools: ToolSet = {};
+    config: Config = {} as Config;
+    messages: ModelMessage[] = [];
+    finishReason: string | null = null;
 
     constructor(
-        config = defaultConfig,
-        tools = ToolsMap,
-        messages = [],
+        config: Partial<Config> = defaultConfig,
+        tools: IToolsMap = ToolsMap,
+        messages: ModelMessage[] = [],
     ) {
         try {
             this.config = parseConfig(config);
@@ -33,14 +48,14 @@ export class TinyKode {
         }
     }
 
-    #createTools(tools, ai) {
+    #createTools(tools: IToolsMap, ai: AIClient): ToolSet {
         return Object.values(tools).reduce((acc, tool) => {
             acc[tool.name] = ai.createTool(tool);
             return acc;
-        }, {});
+        }, {} as Record<string, any>);
     }
 
-    async processQuery({ query, onUpdate, onToolCalls, onToolResults, onToolConfirm }) {
+    async processQuery({ query, onUpdate, onToolCalls, onToolResults, onToolConfirm }: ProcessQueryOptions): Promise<ModelMessage[]> {
         try {
             // Validate input parameters
             if (!query || typeof query !== 'string') {
@@ -56,14 +71,14 @@ export class TinyKode {
                 const {
                     response,
                     textStream,
-                } = this.ai.streamText({
+                } = this.ai!.streamText({
                     tools: this.tools,
                     messages: this.messages,
                     context: {
                         workspaceRoot: this.config.workspaceRoot,
-                        onToolConfirm: (...args) => onToolConfirm?.(...args)
+                        onToolConfirm: (args: ToolDefinition) => onToolConfirm?.(args),
                     },
-                    onStepFinish: ({ toolCalls, toolResults, finishReason }) => {
+                    onStepFinish: ({ toolCalls, toolResults, finishReason }: any) => {
                         onToolCalls?.(toolCalls);
                         onToolResults?.(toolResults);
                         this.finishReason = finishReason;
@@ -85,7 +100,7 @@ export class TinyKode {
             // Add error message to conversation history for context
             this.messages.push({
                 role: "assistant",
-                content: `Error: ${error.message}`
+                content: `Error: ${(error as Error).message}`
             });
 
             throw error;
