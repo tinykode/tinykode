@@ -3,17 +3,38 @@ import { TinyKode } from '../core/tinykode.js';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import type { Config } from '../core/config.js';
 
 const CONFIG_FILE = join(homedir(), '.tinykode', 'tinykode.json');
 
-function loadConfig() {
+interface ToolConfirmArgs {
+    name: string;
+    params: any;
+}
+
+interface CLIOptions {
+    prompt?: string;
+    welcomeMessage?: string | null;
+    tinykodeConfig?: Partial<Config>;
+    exitCommands?: string[];
+    onExit?: () => void;
+}
+
+interface CLI {
+    start: () => Promise<void>;
+    processQuery: (query: string) => Promise<void>;
+    cleanup: () => void;
+    tinykode: TinyKode;
+}
+
+function loadConfig(): Partial<Config> {
     try {
         if (existsSync(CONFIG_FILE)) {
             const configData = readFileSync(CONFIG_FILE, 'utf8');
             return JSON.parse(configData);
         }
     } catch (error) {
-        console.warn(`Warning: Could not load config from ${CONFIG_FILE}:`, error.message);
+        console.warn(`Warning: Could not load config from ${CONFIG_FILE}:`, (error as Error).message);
     }
     return {};
 }
@@ -23,12 +44,12 @@ const rl = readline.createInterface({
     output: process.stdout
 });
 
-export const input = async (question) => {
+export const input = async (question: string): Promise<string> => {
     console.log();
     return (await rl.question(question)).trim();
 };
 
-export const createCLI = (options = {}) => {
+export const createCLI = (options: CLIOptions = {}): CLI => {
     const config = loadConfig();
     
     const {
@@ -44,10 +65,10 @@ export const createCLI = (options = {}) => {
 
     const tinykode = new TinyKode(tinykodeConfig);
 
-    const processQuery = async (query) => {
+    const processQuery = async (query: string): Promise<void> => {
         await tinykode.processQuery({
             query,
-            onUpdate: (update) => {
+            onUpdate: (update: string) => {
                 try {
                     process.stdout.write(update);
                 } catch (error) {
@@ -59,7 +80,7 @@ export const createCLI = (options = {}) => {
                     toolCalls.forEach(toolCall => {
                         console.log('\n====== Tool Call ======');
                         console.log(`Tool: ${toolCall.toolName}`);
-                        const input = JSON.stringify(toolCall.input, null, 2)
+                        const input = JSON.stringify(toolCall.input, null, 2);
                         const outputLines = input.split('\n').slice(0, 4);
                         console.log(outputLines.join('\n'));
                         console.log('========================\n');
@@ -76,15 +97,15 @@ export const createCLI = (options = {}) => {
                     });
                 }
             },
-            onToolConfirm: async ({ tool, params }) => {
-                const question = `Confirm execution of tool "${tool}" with parameters ${JSON.stringify(params)}? (YES/no) > `;
+            onToolConfirm: async ({ name, params }: ToolConfirmArgs): Promise<boolean> => {
+                const question = `Confirm execution of tool "${name}" with parameters ${JSON.stringify(params)}? (YES/no) > `;
                 const confirmed = await input(question);
                 return ['', 'y', 'yes'].includes(confirmed.toLowerCase());
             }
         });
     };
 
-    const start = async () => {
+    const start = async (): Promise<void> => {
         try {
             if (welcomeMessage) {
                 console.log(welcomeMessage);
@@ -110,7 +131,7 @@ export const createCLI = (options = {}) => {
         }
     };
 
-    const cleanup = () => {
+    const cleanup = (): void => {
         rl.close();
     };
 
@@ -122,15 +143,15 @@ export const createCLI = (options = {}) => {
     };
 };
 
-export const setupEventHandlers = (cli) => {
+export const setupEventHandlers = (cli: CLI): void => {
     // Handle uncaught exceptions
-    process.on('uncaughtException', (error) => {
+    process.on('uncaughtException', (error: Error) => {
         console.error('Uncaught Exception:', error);
         process.exit(1);
     });
 
     // Handle unhandled promise rejections
-    process.on('unhandledRejection', (reason, promise) => {
+    process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
         console.error('Unhandled Rejection at:', promise, 'reason:', reason);
         process.exit(1);
     });
@@ -150,7 +171,7 @@ export const setupEventHandlers = (cli) => {
 };
 
 // Default CLI implementation when run directly
-async function main() {
+async function main(): Promise<void> {
     const cli = createCLI();
     setupEventHandlers(cli);
     await cli.start();

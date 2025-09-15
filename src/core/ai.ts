@@ -1,5 +1,11 @@
 import { streamText, tool } from 'ai';
-import type { LanguageModel, ModelMessage, ToolSet } from 'ai';
+import type { 
+    ToolSet,
+    ModelMessage,
+    LanguageModel,
+    TypedToolResult,
+    TypedToolCall,
+ } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import type { Config } from './config.js';
 
@@ -14,6 +20,9 @@ type ToolParams = {
     name: string;
     params: any;
 };
+
+type ToolCall = TypedToolCall<ToolSet>
+type ToolResult = TypedToolResult<ToolSet>
 
 type OmitParam<T, K extends keyof T> = T extends { [P in K]: any } ? Omit<T, K> : T;
 
@@ -64,6 +73,8 @@ class AIClient {
 export {
     AIClient,
     type ToolSet,
+    type ToolCall,
+    type ToolResult,
     type ModelMessage,
     type ToolExecuteContext,
 };

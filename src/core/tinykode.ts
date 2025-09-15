@@ -1,12 +1,18 @@
-import { AIClient, type ModelMessage, type ToolSet } from "./ai.js";
+import { 
+    AIClient,
+    type ToolSet,
+    type ToolCall,
+    type ToolResult,
+    type ModelMessage,
+} from "./ai.js";
 import { config as defaultConfig, parseConfig, type Config } from './config.js';
 import { ToolsMap } from "./tools/index.js";
 
 interface ProcessQueryOptions {
     query: string;
     onUpdate?: (chunk: string) => void;
-    onToolCalls?: (toolCalls: any[]) => void;
-    onToolResults?: (toolResults: any[]) => void;
+    onToolCalls?: (toolCalls: ToolCall[]) => void;
+    onToolResults?: (toolResults: ToolResult[]) => void;
     onToolConfirm?: (args: ToolDefinition) => Promise<boolean> | undefined;
 }
 
@@ -78,7 +84,7 @@ export class TinyKode {
                         workspaceRoot: this.config.workspaceRoot,
                         onToolConfirm: (args: ToolDefinition) => onToolConfirm?.(args),
                     },
-                    onStepFinish: ({ toolCalls, toolResults, finishReason }: any) => {
+                    onStepFinish: ({ toolCalls, toolResults, finishReason }) => {
                         onToolCalls?.(toolCalls);
                         onToolResults?.(toolResults);
                         this.finishReason = finishReason;
