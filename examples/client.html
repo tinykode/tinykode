@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>TinyKode Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        #chat {
+            height: 400px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+
+        #input {
+            width: calc(100% - 80px);
+            padding: 10px;
+        }
+
+        button {
+            width: 70px;
+            padding: 10px;
+        }
+
+        .user {
+            color: #007bff;
+            font-weight: bold;
+        }
+
+        .assistant {
+            color: #333;
+            white-space: pre-wrap;
+            /* Preserve whitespace and newlines */
+            word-wrap: break-word;
+            /* Allow long words to break */
+        }
+
+        .tool {
+            color: #666;
+            font-style: italic;
+            background: #f8f9fa;
+            padding: 8px;
+            margin: 4px 0;
+            border-radius: 4px;
+            border-left: 3px solid #007bff;
+        }
+
+        .tool-call {
+            color: #0066cc;
+            background: #e6f3ff;
+            border-left-color: #0066cc;
+        }
+
+        .tool-result {
+            color: #28a745;
+            background: #e6ffed;
+            border-left-color: #28a745;
+        }
+
+        .tool-confirm {
+            color: #ffc107;
+            background: #fff8e1;
+            border-left-color: #ffc107;
+        }
+
+        .tool button {
+            margin: 0 4px;
+            padding: 4px 8px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .tool button:first-of-type {
+            background: #28a745;
+            color: white;
+        }
+
+        .tool button:last-of-type {
+            background: #dc3545;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>TinyKode Chat</h1>
+    <div id="chat"></div>
+    <input id="input" placeholder="Type your message..." onkeypress="if(event.key==='Enter') send()">
+    <button onclick="send()">Send</button>
+
+    <script>
+        const chat = document.getElementById('chat');
+        const input = document.getElementById('input');
+        let pendingConfirmation = null;
+        let messages = []; // Store conversation history
+
+        function addMessage(type, content) {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = content;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        function addToolMessage(type, content, extraClass = '') {
+            const div = document.createElement('div');
+            div.className = `tool ${extraClass}`;
+            div.innerHTML = content;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+            return div;
+        }
+
+        function createAssistantMessage() {
+            const container = document.createElement('div');
+            container.className = 'assistant';
+            container.textContent = 'Assistant: ';
+            chat.appendChild(container);
+            return container
+        }
+
+        async function send() {
+            const message = input.value.trim();
+            if (!message) return;
+
+            // Add user message to conversation history
+            messages.push({ role: 'user', content: message });
+
+            addMessage('user', `You: ${message}`);
+            input.value = '';
+
+            let createNewResponseDiv = false;
+            let responseDiv = createAssistantMessage();
+
+            const response = await fetch('/query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages }) // Send messages array instead of query
+            });
+
+            const reader = response.body.getReader();
+            let assistantResponse = '';
+
+            function addLineBreak(line) {
+                responseDiv.textContent += '\n';
+            }
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = new TextDecoder().decode(value);
+
+                // Split chunk by lines to handle multiple JSON objects
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (!line.trim()) {
+                        addLineBreak(line);
+                    }
+                    try {
+                        const event = JSON.parse(line);
+                        if (event.type === 'toolCall') {
+                            addToolMessage('tool-call', `🔧 <strong>Calling tool:</strong> ${event.name}`, 'tool-call');
+                            createNewResponseDiv = true;
+                        } else if (event.type === 'toolResult') {
+                            addToolMessage('tool-result', `✅ <strong>Tool completed successfully</strong>`, 'tool-result');
+                            createNewResponseDiv = true;
+                        } else if (event.type === 'toolConfirm') {
+                            pendingConfirmation = event.id;
+                            const confirmDiv = addToolMessage('tool-confirm',
+                                `❓ <strong>Confirm ${event.name} : ${JSON.stringify(event.params)}?</strong>
+                                <button onclick="confirmTool('${event.id}', true)">Yes</button> 
+                                <button onclick="confirmTool('${event.id}', false)">No</button>`,
+                                'tool-confirm');
+                            confirmDiv.id = `confirm-${event.id}`; // Add ID for easy removal
+                        }
+                    } catch {
+                        if (createNewResponseDiv) {
+                            responseDiv = createAssistantMessage();
+                            createNewResponseDiv = false;
+                        }
+                        // Regular text response (not JSON)
+                        if (line.trim()) {
+                            responseDiv.textContent += line;
+                            assistantResponse += line;
+                        }
+                    }
+                }
+            }
+
+            // Add assistant response to conversation history
+            if (assistantResponse.trim()) {
+                messages.push({ role: 'assistant', content: assistantResponse.trim() });
+            }
+
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        async function confirmTool(id, confirmed) {
+            await fetch('/confirm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, confirmed })
+            });
+
+            // Remove the confirmation UI
+            const confirmDiv = document.getElementById(`confirm-${id}`);
+            if (confirmDiv) {
+                // Replace with the result message
+                if (confirmed) {
+                    confirmDiv.innerHTML = `✅ <strong>Tool confirmed and executing...</strong>`;
+                    confirmDiv.className = 'tool tool-result';
+                } else {
+                    confirmDiv.innerHTML = `❌ <strong>Tool execution cancelled</strong>`;
+                    confirmDiv.className = 'tool';
+                    confirmDiv.style.color = '#dc3545';
+                    confirmDiv.style.background = '#f8d7da';
+                    confirmDiv.style.borderLeftColor = '#dc3545';
+                }
+                confirmDiv.id = ''; // Remove the ID since it's no longer needed
+            }
+
+            // Clear pending confirmation
+            if (pendingConfirmation === id) {
+                pendingConfirmation = null;
+            }
+        }
+
+        // Keep the old function for backward compatibility (though it's not used anymore)
+        async function confirm(confirmed) {
+            if (pendingConfirmation) {
+                await confirmTool(pendingConfirmation, confirmed);
+            }
+        }
+    </script>
+</body>
+
+</html>
